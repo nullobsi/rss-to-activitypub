@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express'),
-      router = express.Router();
+      router = express.Router(),
+    Parser = require("rss-parser");
 const {createAcct} = require("./actor");
 
 router.get('/', async function (req, res) {
