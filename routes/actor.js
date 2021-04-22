@@ -44,7 +44,38 @@ function createWebfinger(name, domain) {
     };
 }
 
+
+async function getActorOrNitter(username, instance, selection) {
+    let name = `${username}@${instance}`
+    let result = db.prepare('select actor from accounts where name = ?').get(name);
+    if (result === undefined) {
+        // attempt to get nitter user
+        let nitterUrl = req.app.get('nitter');
+        try {
+            let parser = new Parser();
+            feedUrl = `${nitterUrl}/${username}/rss`;
+            feedData = await parser.parseURL(feedUrl);
+            let displayName = feedData.title;
+            let description = feedData.description;
+            // create keypair
+            let pair = generateRSAKeypair();
+            let actorRecord = createActor(username, domain, pair.public, displayName, feedData.image.url, description);
+            let webfingerRecord = createWebfinger(username, domain);
+            const apikey = crypto.randomBytes(16).toString('hex');
+            let actorJson = JSON.stringify(actorRecord)
+            db.prepare('insert or replace into accounts(name, actor, apikey, pubkey, privkey, webfinger) values(?, ?, ?, ?, ?, ?)').run( `${username}@${domain}`, actorJson, apikey, pair.public, pair.private, JSON.stringify(webfingerRecord));
+            result = {
+                actor: actorJson,
+            };
+            // do not add feed; do not poll until follow occurs
+        } catch (e) {
+            return undefined;
+        }
+    }
+    return result;
+}
 module.exports = {
     createWebfinger,
     createActor,
+    getActorOrNitter
 }

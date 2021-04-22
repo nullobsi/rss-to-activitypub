@@ -1,8 +1,9 @@
 'use strict';
 const express = require('express'),
       router = express.Router();
+const {getActorOrNitter} = require("./actor");
 
-router.get('/', function (req, res) {
+router.get('/', async function (req, res) {
   let resource = req.query.resource;
   if (!resource || !resource.includes('acct:')) {
     return res.status(400).send('Bad request. Please make sure "acct:USER@DOMAIN" is what you are sending as the "resource" query parameter.');
@@ -10,6 +11,7 @@ router.get('/', function (req, res) {
   else {
     let name = resource.replace('acct:','');
     let db = req.app.get('db');
+    await getActorOrNitter(username, domain);
     let result = db.prepare('select webfinger from accounts where name = ?').get(name);
     if (result === undefined) {
       return res.status(404).send(`No record found for ${name}.`);
