@@ -54,7 +54,7 @@ function createAcct(feedData, username, domain, db) {
     let actorRecord = createActor(username, domain, pair.public, displayName, feedData.image.url, description);
     let webfingerRecord = createWebfinger(username, domain);
     const apikey = crypto.randomBytes(16).toString('hex');
-    db.prepare('insert or replace into accounts(name, actor, apikey, pubkey, privkey, webfinger) values(?, ?, ?, ?, ?, ?)').run( `${username}@${domain}`, actorJson, apikey, pair.public, pair.private, JSON.stringify(webfingerRecord));
+    db.prepare('insert or replace into accounts(name, actor, apikey, pubkey, privkey, webfinger) values(?, ?, ?, ?, ?, ?)').run( `${username}@${domain}`, JSON.stringify(actorRecord), apikey, pair.public, pair.private, JSON.stringify(webfingerRecord));
     return [actorRecord, webfingerRecord];
 }
 
