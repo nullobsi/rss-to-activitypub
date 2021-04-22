@@ -11,6 +11,7 @@ router.get('/', async function (req, res) {
   else {
     let name = resource.replace('acct:','');
     let db = req.app.get('db');
+    let [username, domain] = name.split("@");
     await getActorOrNitter(username, domain);
     let result = db.prepare('select webfinger from accounts where name = ?').get(name);
     if (result === undefined) {
