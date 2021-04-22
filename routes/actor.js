@@ -1,4 +1,5 @@
 const generateRSAKeypair = require('generate-rsa-keypair');
+const crypto = require("crypto");
 function createActor(name, domain, pubkey, displayName, imageUrl, description) {
     displayName = displayName || name;
     let actor =  {
