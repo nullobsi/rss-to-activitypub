@@ -3,8 +3,8 @@ const express = require('express'),
       router = express.Router(),
     crypto = require('crypto'),
       Parser = require('rss-parser'),
-    generateRSAKeypair = require('generate-rsa-keypair'),
-    {createWebfinger, createActor, getActorOrNitter} = require("./actor.js");
+    {createWebfinger, createActor} = require("./actor.js");
+const {createAcct} = require("./actor");
 
 router.get('/:name', async function (req, res) {
   let name = req.params.name;
@@ -19,7 +19,23 @@ router.get('/:name', async function (req, res) {
     let feedData = undefined;
     let feedUrl = undefined;
 
-    let result = await getActorOrNitter(username, domain);
+    let result = db.prepare('select actor from accounts where name = ?').get(name);
+    if (result === undefined) {
+      // attempt to get nitter user
+      let nitterUrl = req.app.get('nitter');
+      try {
+        let parser = new Parser();
+        feedUrl = `${nitterUrl}/${username}/rss`;
+        feedData = await parser.parseURL(feedUrl);
+        let [actorData] = createAcct(feedData, username, domain, db);
+        result = {
+          actor: JSON.stringify(actorData),
+        };
+        // do not add feed; do not poll until follow occurs
+      } catch (e) {
+        return res.status(404).json(`Error occured: ${e} with ${feedUrl}`);
+      }
+    }
 
     if (req.headers.accept && (req.headers.accept.includes('application/activity+json') || req.headers.accept.includes('application/json') || req.headers.accept.includes('application/json+ld'))) {
       let tempActor = JSON.parse(result.actor);

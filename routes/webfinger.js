@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express'),
       router = express.Router();
-const {getActorOrNitter} = require("./actor");
+const {createAcct} = require("./actor");
 
 router.get('/', async function (req, res) {
   let resource = req.query.resource;
@@ -12,14 +12,22 @@ router.get('/', async function (req, res) {
     let name = resource.replace('acct:','');
     let db = req.app.get('db');
     let [username, domain] = name.split("@");
-    await getActorOrNitter(username, domain);
     let result = db.prepare('select webfinger from accounts where name = ?').get(name);
     if (result === undefined) {
-      return res.status(404).send(`No record found for ${name}.`);
+      // attempt to get nitter user
+      let nitterUrl = req.app.get('nitter');
+      try {
+        let parser = new Parser();
+        let feedUrl = `${nitterUrl}/${username}/rss`;
+        let feedData = await parser.parseURL(feedUrl);
+        let [,webfingerDat] = createAcct(feedData, username, domain, db);
+        result = {webfinger: JSON.stringify(webfingerDat)};
+      } catch (e) {
+        return res.status(404).send(`No record found for ${name}.`);
+      }
     }
-    else {
-      res.json(JSON.parse(result.webfinger));
-    }
+
+    res.json(JSON.parse(result.webfinger));
   }
 });
 
