@@ -23,7 +23,7 @@ router.get('/', async function (req, res) {
         let [,webfingerDat] = createAcct(feedData, username, domain, db);
         result = {webfinger: JSON.stringify(webfingerDat)};
       } catch (e) {
-        return res.status(404).send(`No record found for ${name}.`);
+        return res.status(404).send(`No record found for ${name} with ${e}`);
       }
     }
 
