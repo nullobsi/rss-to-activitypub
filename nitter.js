@@ -34,7 +34,7 @@ function getNitterActivity(id, item) {
         let out = {
             'id': `https://${DOMAIN}/m/${id}`,
             'type': 'Note',
-            'published': d.toISOString(),
+            'published': (new Date()).toISOString(),
             'attributedTo': actor.id,
             'content': item.content,
             'link': item.link,
