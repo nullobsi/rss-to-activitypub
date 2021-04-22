@@ -2,9 +2,8 @@
 const express = require('express'),
       router = express.Router(),
     crypto = require('crypto'),
-      Parser = require('rss-parser'),
-    {createWebfinger, createActor} = require("./actor.js");
-const {createAcct} = require("./actor");
+      Parser = require('rss-parser');
+const {getAccount} = require("../nitter");
 
 router.get('/:name', async function (req, res) {
   let name = req.params.name;
@@ -16,62 +15,22 @@ router.get('/:name', async function (req, res) {
     let domain = req.app.get('domain');
     let username = name;
     name = `${name}@${domain}`;
-    let feedData = undefined;
-    let feedUrl = undefined;
+    let result = await getAccount(username, 'actor');
 
-    let result = db.prepare('select actor from accounts where name = ?').get(name);
     if (result === undefined) {
-      // attempt to get nitter user
-      let nitterUrl = req.app.get('nitter');
-      try {
-        let parser = new Parser();
-        feedUrl = `${nitterUrl}/${username}/rss`;
-        feedData = await parser.parseURL(feedUrl);
-        let [actorData] = createAcct(feedData, username, domain, db);
-        result = {
-          actor: JSON.stringify(actorData),
-        };
-        // do not add feed; do not poll until follow occurs
-      } catch (e) {
-        return res.status(404).json(`Error occured: ${e} with ${feedUrl}`);
-      }
+      return res.status(404).json(`No entry found for ${name}`);
     }
 
-    if (req.headers.accept && (req.headers.accept.includes('application/activity+json') || req.headers.accept.includes('application/json') || req.headers.accept.includes('application/json+ld'))) {
-      let tempActor = JSON.parse(result.actor);
-      // Added this followers URI for Pleroma compatibility, see https://github.com/dariusk/rss-to-activitypub/issues/11#issuecomment-471390881
-      // New Actors should have this followers URI but in case of migration from an old version this will add it in on the fly
-      if (tempActor.followers === undefined) {
-        tempActor.followers = `https://${domain}/u/${username}/followers`;
-      }
-      res.json(tempActor);
+    // Added this followers URI for Pleroma compatibility, see https://github.com/dariusk/rss-to-activitypub/issues/11#issuecomment-471390881
+    // New Actors should have this followers URI but in case of migration from an old version this will add it in on the fly
+    if (result.actor.followers === undefined) {
+      result.actor.followers = `https://${domain}/u/${username}/followers`;
     }
-    else {
-      let actor = JSON.parse(result.actor);
-      if (!feedData) {
-        let resultFeed = db.prepare('select content, feed from feeds where username = ?').get(username);
-        if (resultFeed === undefined) {
-          return res.status(404).json(`Something went very wrong!`);
-        }
-        feedData = JSON.parse(resultFeed.content);
-        feedUrl = resultFeed.feed;
-      }
-
-      let imageUrl = null;
-      // if image exists set image
-      if (actor.icon && actor.icon.url) {
-        imageUrl = actor.icon.url;
-      }
-      let description = null;
-      if (actor.summary) {
-        description = actor.summary;
-      }
-      res.render('user', { displayName: actor.name, items: feedData.items, accountName: '@'+name, imageUrl: imageUrl, description, feedUrl });
-    }
+    res.json(result.actor);
   }
 });
 
-router.get('/:name/followers', function (req, res) {
+router.get('/:name/followers', async function (req, res) {
   let name = req.params.name;
   if (!name) {
     return res.status(400).send('Bad request.');
@@ -79,8 +38,8 @@ router.get('/:name/followers', function (req, res) {
   else {
     let db = req.app.get('db');
     let domain = req.app.get('domain');
-    let result = db.prepare('select followers from accounts where name = ?').get(`${name}@${domain}`);
-    let followers = JSON.parse(result.followers);
+    let result = await getAccount(name, 'followers');
+    let followers = result.followers;
     // console.log(followers);
     if (!followers) {
       followers = [];
@@ -99,7 +58,7 @@ router.get('/:name/followers', function (req, res) {
       "@context":["https://www.w3.org/ns/activitystreams"]
     };
     res.json(followersCollection);
-    //res.json(JSON.parse(result.actor));
+    // TODO: return actual list of followers
   }
 });
 

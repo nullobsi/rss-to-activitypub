@@ -2,6 +2,7 @@
 const express = require('express'),
       router = express.Router(),
     Parser = require("rss-parser");
+const {getAccount} = require("../nitter");
 const {createAcct} = require("./actor");
 
 router.get('/', async function (req, res) {
@@ -11,24 +12,13 @@ router.get('/', async function (req, res) {
   }
   else {
     let name = resource.replace('acct:','');
-    let db = req.app.get('db');
-    let [username, domain] = name.split("@");
-    let result = db.prepare('select webfinger from accounts where name = ?').get(name);
+    let [username] = name.split("@");
+    let result = await getAccount(username, 'webfinger');
     if (result === undefined) {
-      // attempt to get nitter user
-      let nitterUrl = req.app.get('nitter');
-      try {
-        let parser = new Parser();
-        let feedUrl = `${nitterUrl}/${username}/rss`;
-        let feedData = await parser.parseURL(feedUrl);
-        let [,webfingerDat] = createAcct(feedData, username, domain, db);
-        result = {webfinger: JSON.stringify(webfingerDat)};
-      } catch (e) {
-        return res.status(404).send(`No record found for ${name} with ${e}`);
-      }
+      return res.status(404).send(`No record found for ${name}`);
     }
 
-    res.json(JSON.parse(result.webfinger));
+    res.json(result.webfinger);
   }
 });
 

@@ -5,6 +5,7 @@ const express = require('express'),
       fs = require('fs'),
       router = express.Router(),
       Parser = require("rss-parser");
+const {getAccount} = require("../nitter");
 
 function signAndSend(message, name, domain, req, res, targetDomain) {
   // get the URI of the actor object and append 'inbox' to it
@@ -65,7 +66,7 @@ function sendAcceptMessage(thebody, name, domain, req, res, targetDomain) {
   signAndSend(message, name, domain, req, res, targetDomain);
 }
 
-router.post('/', function (req, res) {
+router.post('/', async function (req, res) {
   // pass in a name for an account, if the account doesn't exist, create it!
   let domain = req.app.get('domain');
   if (req.body.actor === undefined) {
@@ -85,7 +86,7 @@ router.post('/', function (req, res) {
     // Add the user to the DB of accounts that follow the account
     let db = req.app.get('db');
     // get the followers JSON for the user
-    let result = db.prepare('select followers from accounts where name = ?').get(`${name}@${domain}`);
+    let result = await getAccount(name, 'followers');
     if (result === undefined) {
       console.log(`No record found for ${name}.`);
     }
@@ -93,7 +94,6 @@ router.post('/', function (req, res) {
       // update followers
       let followers = result.followers;
       if (followers) {
-        followers = JSON.parse(followers);
         followers.push(req.body.actor);
         // unique items
         followers = [...new Set(followers)];
@@ -114,6 +114,19 @@ router.post('/', function (req, res) {
         db.prepare('insert or replace into feeds(feed, username, content) values(?, ?, ?)').run(feedUrl, name, JSON.stringify(feedData));
       });
     }
+  } else if (req.body.type === "Undo" && typeof req.body.object === "object" && typeof req.body.object.object === "string" && req.body.object.type == "Follow") {
+    let name = req.body.object.replace(`https://${domain}/u/`,'');
+    let db = req.app.get('db');
+    let result = await getAccount(name, 'followers');
+    if (result === undefined) {
+      return res.json('Does not exist');
+    }
+    let f = result.followers;
+    if (f) {
+      f = f.filter(v => v !== req.body.actor);
+    } else f = [];
+    let fTxt = JSON.stringify(f);
+    db.prepare('update accounts set followers = ? where name = ?').run(fTxt, `${name}@${domain}`);
   }
 });
 
