@@ -1,5 +1,5 @@
 const config = require('./config.json');
-const { DOMAIN, PRIVKEY_PATH, CERT_PATH, PORT_HTTP, PORT_HTTPS } = config;
+const { DOMAIN, PRIVKEY_PATH, CERT_PATH, PORT_HTTP, PORT_HTTPS, NITTER_INSTANCE } = config;
 const express = require('express');
 const app = express();
 const Database = require('better-sqlite3');
@@ -36,6 +36,7 @@ app.set('db', db);
 app.set('domain', DOMAIN);
 app.set('port', process.env.PORT || PORT_HTTP);
 app.set('port-https', process.env.PORT_HTTPS || PORT_HTTPS);
+app.set('nitter', NITTER_INSTANCE)
 app.set('views', './views');
 app.set('view engine', 'pug');
 app.use(bodyParser.json({type: 'application/activity+json'})); // support json encoded bodies

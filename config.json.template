@@ -3,5 +3,6 @@
   "PORT_HTTP": "3000",
   "PORT_HTTPS": "8443",
   "PRIVKEY_PATH": "",
-  "CERT_PATH": ""
+  "CERT_PATH": "",
+  "NITTER_INSTANCE": "https://nitter.org"
 }

@@ -3,7 +3,8 @@ const express = require('express'),
       crypto = require('crypto'),
       request = require('request'),
       fs = require('fs'),
-      router = express.Router();
+      router = express.Router(),
+      Parser = require("rss-parser");
 
 function signAndSend(message, name, domain, req, res, targetDomain) {
   // get the URI of the actor object and append 'inbox' to it
@@ -104,6 +105,14 @@ router.post('/', function (req, res) {
       console.log('adding followersText', followersText);
       // update into DB
       db.prepare('update accounts set followers = ? where name = ?').run(followersText, `${name}@${domain}`);
+
+      // if rss feed does not exist, add it
+      let nitterUrl = req.app.get('nitter');
+      let feedUrl = `${nitterUrl}/${name}/rss`;
+      let parser = new Parser();
+      parser.parseURL(feedUrl, (err, feedData) => {
+        db.prepare('insert or replace into feeds(feed, username, content) values(?, ?, ?)').run(feedUrl, name, JSON.stringify(feedData));
+      });
     }
   }
 });

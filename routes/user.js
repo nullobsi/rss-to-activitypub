@@ -1,8 +1,12 @@
 'use strict';
 const express = require('express'),
-      router = express.Router();
+      router = express.Router(),
+    crypto = require('crypto'),
+      Parser = require('rss-parser'),
+    generateRSAKeypair = require('generate-rsa-keypair'),
+    {createWebfinger, createActor} = require("./actor.js");
 
-router.get('/:name', function (req, res) {
+router.get('/:name', async function (req, res) {
   let name = req.params.name;
   if (!name) {
     return res.status(400).send('Bad request.');
@@ -12,11 +16,36 @@ router.get('/:name', function (req, res) {
     let domain = req.app.get('domain');
     let username = name;
     name = `${name}@${domain}`;
+    let feedData = undefined;
+    let feedUrl = undefined;
+
     let result = db.prepare('select actor from accounts where name = ?').get(name);
     if (result === undefined) {
-      return res.status(404).json(`No record found for ${name}.`);
+      // attempt to get nitter user
+      let nitterUrl = req.app.get('nitter');
+      try {
+        let parser = new Parser();
+        feedUrl = `${nitterUrl}/${username}/rss`;
+        feedData = await parser.parseURL(feedUrl);
+        let displayName = feedData.title;
+        let description = feedData.description;
+        // create keypair
+        let pair = generateRSAKeypair();
+        let actorRecord = createActor(username, domain, pair.public, displayName, feedData.image.url, description);
+        let webfingerRecord = createWebfinger(username, domain);
+        const apikey = crypto.randomBytes(16).toString('hex');
+        let actorJson = JSON.stringify(actorRecord)
+        db.prepare('insert or replace into accounts(name, actor, apikey, pubkey, privkey, webfinger) values(?, ?, ?, ?, ?, ?)').run( `${username}@${domain}`, actorJson, apikey, pair.public, pair.private, JSON.stringify(webfingerRecord));
+        result = {
+          actor: actorJson,
+        };
+        // do not add feed; do not poll until follow occurs
+      } catch (e) {
+        return res.status(404).json(`Error occured: ${e} with ${feedUrl}`);
+      }
     }
-    else if (req.headers.accept && (req.headers.accept.includes('application/activity+json') || req.headers.accept.includes('application/json') || req.headers.accept.includes('application/json+ld'))) {
+
+    if (req.headers.accept && (req.headers.accept.includes('application/activity+json') || req.headers.accept.includes('application/json') || req.headers.accept.includes('application/json+ld'))) {
       let tempActor = JSON.parse(result.actor);
       // Added this followers URI for Pleroma compatibility, see https://github.com/dariusk/rss-to-activitypub/issues/11#issuecomment-471390881
       // New Actors should have this followers URI but in case of migration from an old version this will add it in on the fly
@@ -27,12 +56,15 @@ router.get('/:name', function (req, res) {
     }
     else {
       let actor = JSON.parse(result.actor);
-      let resultFeed = db.prepare('select content, feed from feeds where username = ?').get(username);
-      if (resultFeed === undefined) {
-        return res.status(404).json(`Something went very wrong!`);
+      if (!feedData) {
+        let resultFeed = db.prepare('select content, feed from feeds where username = ?').get(username);
+        if (resultFeed === undefined) {
+          return res.status(404).json(`Something went very wrong!`);
+        }
+        feedData = JSON.parse(resultFeed.content);
+        feedUrl = resultFeed.feed;
       }
-      let feedData = JSON.parse(resultFeed.content);
-      let feedUrl = resultFeed.feed;
+
       let imageUrl = null;
       // if image exists set image
       if (actor.icon && actor.icon.url) {
