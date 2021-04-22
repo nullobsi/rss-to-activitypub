@@ -22,7 +22,7 @@ async function getAccount(username, query) {
 }
 
 function getNitterActivity(id, item) {
-    let result = db.prepare(`SELECT message FROM messages WHERE guid = ?`, id).run(id);
+    let result = db.prepare(`SELECT message FROM messages WHERE guid = ?`, id).get(id);
     if (result) {
         return result;
     } else if (item) {

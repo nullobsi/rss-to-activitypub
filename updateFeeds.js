@@ -145,40 +145,43 @@ async function signAndSend(activity, username, targetDomain, inbox) {
 }
 
 function createAnnounce(username, id) {
-  const guidCreate = crypto.randomBytes(16).toString('hex');
   let d = new Date();
   let out = {
     '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
-    'id': `https://${DOMAIN}/m/${guidCreate}`,
     'actor': `https://${DOMAIN}/u/${username}`,
     type: "Announce",
+    object: `https://${DOMAIN}/m/${id}`,
     'published': d.toISOString(),
+    // to be filled in
+    //'id': `https://${DOMAIN}/m/${guidCreate}`,
     to: [`https://${DOMAIN}/u/${username}/followers`],
-    object: `https://${DOMAIN}/m/${id}`
   }
   db.prepare('insert or replace into messages(guid, message) values(?, ?)').run( guidCreate, JSON.stringify(out));
   return out;
 }
 
 function createCreate(username, note) {
-  const guidCreate = crypto.randomBytes(16).toString('hex');
+
   let d = new Date();
 
-  let out = {
+  return {
     '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
-    'id': `https://${DOMAIN}/m/${guidCreate}`,
     'type': 'Create',
     'actor': `https://${DOMAIN}/u/${username}`,
     published: d.toISOString(),
-  // to be filled in
+    // to be filled in
+    //  'id': `https://${DOMAIN}/m/${guidCreate}`,
     'to': [`https://${DOMAIN}/u/${username}/followers`],
 
     'object': note,
   };
+}
 
-  db.prepare('insert or replace into messages(guid, message) values(?, ?)').run( guidCreate, JSON.stringify(out));
-
-  return out;
+function commitMessage(obj, guid) {
+  if (!guid) guid = crypto.randomBytes(16).toString('hex');
+  obj.id = `https://${DOMAIN}/m/${guid}`
+  db.prepare('insert or replace into messages(guid, message) values(?, ?)').run( guid, JSON.stringify(obj));
+  return obj;
 }
 
 async function forwardActivity(username, activity) {
@@ -195,7 +198,7 @@ async function forwardActivity(username, activity) {
     let myURL = new URL(follower);
     let targetDomain = myURL.hostname;
     activity.to = [follower];
-    await signAndSend(activity, username, targetDomain, inbox);
+    await signAndSend(commitMessage(activity), username, targetDomain, inbox);
   }
 }
 
