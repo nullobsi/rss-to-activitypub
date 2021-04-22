@@ -1,4 +1,4 @@
-const { DOMAIN, PRIVKEY_PATH, CERT_PATH, PORT_HTTP, PORT_HTTPS, NITTER_INSTANCE } = config;
+const { DOMAIN, PRIVKEY_PATH, CERT_PATH, PORT_HTTP, PORT_HTTPS, NITTER_INSTANCE } = require("./config.json");
 const Parser = require("rss-parser");
 const {createAcct} = require("./routes/actor");
 
